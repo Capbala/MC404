@@ -43,7 +43,7 @@ void exit(int code)
 #define STDIN_FD  0
 #define STDOUT_FD 1
 
-int decimal_to_binary(char *str, int *binary)
+void decimal_to_binary(char *str, int *binary)
 {
   int num = 0; // Variable to hold the decimal number
   int i = 0;
@@ -59,30 +59,35 @@ int decimal_to_binary(char *str, int *binary)
     binary[i] = num % 2;
     num /= 2;
   }
-  return 0;
 }
 
 void binary_to_string(int binary[], char *binary_str)
 {
   binary_str[0] = '0'; // First character for binary representation
   binary_str[1] = 'b'; // Second character for binary representation
-
+  int i = 2;
+  while(binary[i] == 0 && i < 32) i++;
   for (int i = 0; i < 34; i++) {
     binary_str[i + 2] = binary[i] + '0'; // Convert binary digit to character
   }
   binary_str[34] = '\n'; // Null-terminate the string
 }
 
+void decimal_to_hexadecimal(char *str, char *hexadecimal_str)
+{
+  return;
+}
+
 int main()
 {
   /* Read up to 20 bytes from the standard input into the str buffer */
-  char str[20];
+  char str[11];
   char binary_str[35]; // 0b + 32 bits + null terminator
   int binary[32];
   char hexadecimal_str[11]; // 0x + 8 hex digits + null terminator
 
   /* Write n bytes from the str buffer to the standard output */
-  int n = read(STDIN_FD, str, 20);
+  int n = read(STDIN_FD, str, 11);
   
   switch(str[0])
   {
@@ -101,7 +106,7 @@ int main()
       binary_to_string(binary, binary_str);            // Decimal to binary conversion
       write(STDOUT_FD, binary_str, 35);                //
 
-      binary_to_hexadecimal(binary,hexadecimal_str);   // Binary to hexadecimal conversion
+      decimal_to_hexadecimal(str,hexadecimal_str);   // Binary to hexadecimal conversion
       write(STDOUT_FD, hexadecimal_str, 35);           //
 
 
