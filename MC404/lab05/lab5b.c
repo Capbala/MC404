@@ -533,15 +533,3 @@ void _start(){
     int ret_code = main();
     exit(ret_code);
 }
-
-/* error cases
-
-Input: lui x2, 924745
- Expected: 0xE1C49137
- Result: 0x00000137
-
-Input: auipc x1, 486583
- Expected: 0x76CB7097
- Result: 0x00000097
-
- */
