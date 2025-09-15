@@ -29,9 +29,10 @@ exit:
 # t0 = index (0 to 4)
 str_to_int:
 
-    li a0, 0 # 
+    li a0, 0 # Initialize result to 0
     li t0, 0 # index
     add t0, a1, a3 # t0 = input_address + offset. Uses t0 as address to read the bytes
+    li t2, 1000 # temp register to hold the decimal multiplier (1, 10, 100, 1000)
 
     str_to_int_loop:
         lb t1, 0(t0) # load byte from input_address + offset + index
@@ -42,8 +43,7 @@ str_to_int:
 
         addi t1, t1, -48 # convert ASCII to integer (ASCII '0' = 48)
 
-        li t2, 1000 # temp register to hold the decimal multiplier (1, 10, 100, 1000)
-        mul a0, a0, t2 # multiply current result by the decimal multiplier(t2)
+        mul t1, t1, t2 # multiply current result by the decimal multiplier(t2)
         add a0, a0, t1 # add the new digit
 
         li t3, 10 # temp register to hold the divisor (10)
@@ -109,6 +109,9 @@ int_to_str:
     ret
 
 main:
+    #addi sp, sp, -4
+    #sw ra, 0(sp)
+
     call read
     
     la a2, string          # a2 <- output_address
@@ -127,9 +130,10 @@ main:
         li t0, 10         # newline character ASCII
         sb t0, 19(a2)     # store newline at the end of the
         call write
+        #jalr zero, s0, 0  # return to caller (exit)
         ret
-
 _start:
+    #jal s0, main
     call main
     call exit
 
