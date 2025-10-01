@@ -205,7 +205,6 @@ main:
 
     # Store error bit in error_bit
     la t0, error_bit
-    #li t4, 'X'      # for debug purposes
     sb t4, 0(t0)   # error bit
     li t1, '\n'
     sb t1, 1(t0)   # newline
