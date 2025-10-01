@@ -7,7 +7,7 @@
 #    4. Whitespace.
 #    5. A height, again in ASCII decimal.
 #    6. Whitespace.
-#    7. The maximum gray value (Maxval), again in ASCII decimal. Must be less than 65536, and more than zero.
+#    7. The maximum gray value (Maxval), again in ASCII decimal. Must be less than 65536, and more than zero. In this case, it will always be 255
 #    8. Newline or other single whitespace character.
 #    9. A raster of Height rows, in order from top to bottom. Each row consists of Width gray values, 
 #       in order from left to right. Each gray value is a number from 0 through Maxval, 
@@ -33,7 +33,6 @@ close:
 
 # a2 = number of bytes to read (from main before calling read)
 read:
-    li a0, 0
     la a1, input_address  # buffer to write the data to
     li a7, 63             # syscall read (63)
     ecall
@@ -47,6 +46,13 @@ set_pixel:
     #    a2[23..16]: Green
     #    a2[15.. 8]: Blue
     #    a2[7 .. 0]: Alpha
+
+    #pixel = 3 = 11111111b
+    #red   = 11111111000000000000000000000000
+    #green = 000000001111111100000000000000000
+    #blue  = 0000000000000000111111110000000000
+    #alpha = 00000000000000000000000011111111
+    #a2 = red | green | blue | alpha
     li a7, 2200
     ecall
     ret
@@ -74,13 +80,45 @@ exit:
 
 str_to_int:
 
+
+# Read from input_address with and offset a1 . Return in a2 the number of digits to read 
+# Parameters:
+#   a1: input_address
+#   a3: offset to start reading from input_address
+# Return:
+#   a2: number of digits read
 get_number_of_digits:
 
-draw_image:
+    li t0, 0          # digit counter
+    add t1, a1, a3    # t1 = input_address + offset
+    li t2, ' '        # whitespace character
+    li t3, '\n'       # newline character
+
+    count_loop:
+        addi t0, t0, 1    # increment digit counter
+        addi t1, t1, 1    # move to next byte
+        lbu t4, 0(t1)      # load byte from input_address + offset
+        beq t4, t2, end_count # if byte is whitespace, end loop
+        beq t4, t3, end_count # if byte is newline, end loop
+        j count_loop      # repeat loop
+    end_count:
+        mv a0, t0          # return number of digits read in a2
+        ret
 
 main:
-    jal open
+    jal open # open .pgm file
 
+    li a2, 262159 # number of bytes to read
+    jal read # read .pgm file and saves it in a1
+             # a1 <- input_address
+
+    li a3, 3 # offset of 3 to get width: P5 |X| Y Maxval Raster
+    jal get_number_of_digits # get the amount of digits to read because X goes from 1 to 512 (1 to 3 digits)
+    mv s1, a2 # s1 = number of digits of width
+    
+
+
+    jr s0 # -> jalr x0, s0, 0
 
 _start:
     jal s0, main
@@ -91,3 +129,10 @@ input_address: .skip 262159
 
 .data
 input_file: .asciz "image.pgm"
+
+# Example of how .pgm file is to read
+# XXX is the width
+# YYY is the height
+# 255 is the pre-defined maxval
+# after \n is the pixels value that the program read and later draws on the canvas
+# image = [P,5, ,X, ,Y,Y,Y, ,2,5,5,\n,0, ,0, ,12, ,12, ,0, ,15,\n,]
