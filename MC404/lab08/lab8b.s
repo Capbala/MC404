@@ -156,20 +156,135 @@ get_number_of_digits:
 #  a0: x coordinate
 #  a1: y coordinate
 #  a2: concatenated pixel's colors: R|G|B|A
-draw_canvas:
-    li a0, 0            # a0 = x coordinate
-    li a1, 0            # a1 = y coordinate
-    li t0, 0            # t0 = i (height index)
-    li t1, 0            # t1 = j (width index)
+#
+# Function follows the equation:
+#
+#       M_out[i][j] = Sum_k(0->2)Sum_q(0->2)w[k][q] * M_in[i+k-1][j+q-1]
+#
+draw_canvas_with_filter:
+    la s10, filter_matrix # s10 = base address of our 3x3 filter
 
-    # Register to check boundaries for filter application
-    addi s5, s1, -1   # s5 = width - 1
-    addi s6, s2, -1   # s6 = height - 1
+    # --- Outer loop for rows (i) ---
+    li s5, 0 # i = 0
 
-    
+    i_loop:
+        beq s5, s2, end_draw # if i == height, exit
+
+        # --- Inner loop for columns (j) ---
+        li s6, 0 # j = 0
+
+        j_loop:
+            beq s6, s1, next_i # if j == width, go to next row
+
+            # --- 1. Border Check ---
+            # Check if i or j is on the edge of the image.
+            li t0, 0
+            beq s5, t0, is_border # if i == 0
+            addi t0, s2, -1
+            beq s5, t0, is_border # if i == height - 1
+            li t0, 0
+            beq s6, t0, is_border # if j == 0
+            addi t0, s1, -1
+            beq s6, t0, is_border # if j == width - 1
+            j calculate_pixel     # If not a border, jump to calculation
+
+    is_border:
+        li s9, 0 # Set border pixel value to 0 (black)
+        j clamp_and_draw # Jump to the drawing step
+
+    calculate_pixel:
+        # --- 2. Initialize Sum ---
+        li s9, 0 # s9 = sum = 0
+
+        # --- 3. Loop through 3x3 filter (k) ---
+        li s7, 0 # k = 0
+    k_loop:
+        li t0, 3
+        beq s7, t0, clamp_and_draw # if k == 3, filter is done
+
+        # --- 3. Loop through 3x3 filter (q) ---
+        li s8, 0 # q = 0
+    q_loop:
+        li t0, 3
+        beq s8, t0, next_k # if q == 3, go to next k
+
+        # --- 4. Calculate Input Pixel Address ---
+        # input_pixel_row = i + k - 1
+        add t0, s5, s7
+        addi t0, t0, -1
+        # input_pixel_col = j + q - 1
+        add t1, s6, s8
+        addi t1, t1, -1
+        # offset = row * width + col
+        mul t2, t0, s1
+        add t2, t2, t1
+        # M_in_address = base_address + offset
+        add t3, s3, t2
+        lbu t4, 0(t3) # t4 = M_in[i+k-1][j+q-1]
+
+        # --- 5. Multiply and Accumulate ---
+        # Get filter weight
+        # w_offset = k * 3 + q
+        li t0, 3
+        mul t2, s7, t0
+        add t2, t2, s8
+        # w_address = filter_base + w_offset
+        add t3, s10, t2
+        lb t5, 0(t3) # t5 = w[k][q] (use lb for signed byte)
+
+        # sum += input_pixel * weight
+        mul t6, t4, t5
+        add s9, s9, t6
+
+        addi s8, s8, 1 # q++
+        j q_loop
+
+    next_k:
+        addi s7, s7, 1 # k++
+        j k_loop
+
+    clamp_and_draw:
+        # --- 6. Clamp the Value ---
+        li t0, 0
+        blt s9, t0, set_zero  # if sum < 0, sum = 0
+        li t0, 255
+        bgt s9, t0, set_255 # if sum > 255, sum = 255
+        j draw_pixel
+
+    set_zero:
+        li s9, 0
+        j draw_pixel
+
+    set_255:
+        li s9, 255
+
+    draw_pixel:
+        # --- 7. Draw the Pixel ---
+        # Prepare arguments for set_pixel(x, y, color)
+        mv a0, s6 # a0 = x = j
+        mv a1, s5 # a1 = y = i
+
+        # Assemble color R|G|B|A 
+        li a2, 255        # a2 = alpha = 255
+        slli t0, s9, 8    # Shift blue value
+        or a2, a2, t0     # a2 |= (sum << 8)
+        slli t0, s9, 16   # Shift green value
+        or a2, a2, t0     # a2 |= (sum << 16)
+        slli t0, s9, 24   # Shift red value
+        or a2, a2, t0     # a2 |= (sum << 24)
+
+        jal set_pixel
+
+        addi s6, s6, 1 # j++
+        j j_loop
+
+    next_i:
+        addi s5, s5, 1 # i++
+        j i_loop
 
     end_draw:
-    jr s4 # return to main
+        
+        jr s4 # return to main
 
 main:
     jal open             # open .pgm file
@@ -215,7 +330,7 @@ main:
     mv a1, s2            # a1 = height
     jal set_canvas_size
 
-    jal s4, draw_canvas  # set s4 as return addr and call draw_canvas
+    jal s4, draw_canvas_with_filter  # set s4 as return addr and call draw_canvas
 
     jr s0                # exit to kernel (via _start)
     
@@ -228,6 +343,11 @@ input_address: .skip 262159
 
 .data
 input_file: .asciz "image.pgm"
+filter_matrix:
+    .byte -1, -1, -1
+    .byte -1,  8, -1
+    .byte -1, -1, -1
+
 
 # Example of how .pgm file is to read
 # XXX is the width
