@@ -267,11 +267,11 @@ draw_canvas_with_filter:
         # Assemble color R|G|B|A 
         li a2, 255        # a2 = alpha = 255
         slli t0, s9, 8    # Shift blue value
-        or a2, a2, t0     # a2 |= (sum << 8)
+        or a2, a2, t0     # a2 = (sum << 8)
         slli t0, s9, 16   # Shift green value
-        or a2, a2, t0     # a2 |= (sum << 16)
+        or a2, a2, t0     # a2 = (sum << 16)
         slli t0, s9, 24   # Shift red value
-        or a2, a2, t0     # a2 |= (sum << 24)
+        or a2, a2, t0     # a2 = (sum << 24)
 
         jal set_pixel
 
