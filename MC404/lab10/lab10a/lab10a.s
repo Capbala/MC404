@@ -4,7 +4,12 @@
 # atoi ( const char * str )
 # itoa ( int value, char * str, int base )
 
-.globl _start
+.globl exit
+.globl puts
+.globl gets
+.globl atoi
+.globl itoa
+.globl linked_list_search
 
 # Writes the string to the stdout and appends a newline character ('\n')
 # Parameters:
@@ -12,6 +17,7 @@
 puts:
     # Get the length of the string
     mv t0, a0      # Move the pointer to t0
+    mv t3, a0      # Copy pointer to t3 for later use
     li t1, 0       # Initialize length counter to 0
 
     # Loop until we find the null terminator
@@ -24,21 +30,24 @@ puts:
     
     # Add newline character to the length and write to stdout
     write_newline: 
-        addi t1, t1, 1  # Account for the newline character
-        li a0, 1        # file descriptor = 1 (stdout)
         mv a1, a0       # pointer to the string
+        li a0, 1        # file descriptor = 1 (stdout)
         mv a2, t1       # size (length of string + newline)
         li a7, 64       # syscall write (64)
         ecall
 
-        li t0, '\n'
+        addi sp, sp, -4  # Allocate space on stack for newline character
+        li t0, '\n'      # Load newline character into t0
+        sb t0, 0(sp)     # Store newline character on stack
         # Write the newline character
         li a0, 1        # file descriptor = 1 (stdout)
-        la a1, t0       # pointer to the newline character
+        mv a1, sp       # pointer to the newline character
         li a2, 1        # size = 1
         li a7, 64       # syscall write (64)
         ecall
 
+        addi sp, sp, 4   # Deallocate space on stack
+        mv a0, t3       # Move original string pointer back to a0 for return
         ret
 
 # Reads a line from stdin, until newline, and copies it into the buffer, null-terminating it
@@ -46,7 +55,9 @@ puts:
 # a0: pointer to the buffer
 gets:
     mv t0, a0   # Move buffer pointer to t0
+    mv t4, a0
     li t1, 0    # Initialize index to 0
+    li t3, '\n' # Newline character
 
     # Read characters until newline
     read_loop:
@@ -57,19 +68,19 @@ gets:
         ecall
 
         lb t2, 0(t0)    # Load the byte read into t2
-        beq t2, '\n', read_end # If byte is newline, exit loop
+        beq t2, t3, read_end # If byte is newline, exit loop
         addi t0, t0, 1  # Move to the next byte in the buffer
-        j 0b            # Repeat the loop
+        j read_loop     # Repeat the loop
     
     read_end:
         sb zero, 0(t0)  # Null-terminate the string
+        mv a0, t4       # Move the original buffer pointer to a0 for return
         ret
 
 # Converts a string to an integer
 atoi:
     li t0, 0    # Initialize result to 0
     li t1, 1    # Initialize sign to positive
-    li t4, 1    # Initialize base to 1 (for positional value)
 
     # Check for negative sign
     lb t2, 0(a0)    # Load first character
@@ -85,11 +96,11 @@ atoi:
     convert_loop:
         lb t2, 0(a0)    # Load current character
         li t3, 10       # Load newline (ASCII 10)
-        beq t2, t3, convert_end # If character is newline, end conversion
+        beq t2, zero, convert_end # If character is null, end conversion
 
-        li t5, '0'      # Load ASCII value of '0'
-        sub t2, t2, t5  # Convert ASCII to integer (char - '0')
-        mul t0, t0, 10  # Multiply current result by 10 (shift left)
+        li t4, '0'      # Load ASCII value of '0'
+        sub t2, t2, t4  # Convert ASCII to integer (char - '0')
+        mul t0, t0, t3  # Multiply current result by 10 (shift left)
         add t0, t0, t2  # Add the new digit
 
         addi a0, a0, 1  # Move to the next character
@@ -111,7 +122,7 @@ atoi:
 # a2: base (10 or 16)
 itoa:
     mv t0, a1       # Copies the address of the buffer to t0 for later use
-
+    mv t6, a1       # Copy buffer pointer to t6 for restoring later
     bltz a0, handle_negative # If number is negative, handle it
 
     j loop_itoa
@@ -122,13 +133,15 @@ itoa:
         addi a1, a1, 1  # Move buffer pointer to the next position
         addi t0, t0, 1  # Move the start pointer forward
         neg a0, a0      # Make the number positive
-    
+
     loop_itoa:
         rem t1, a0, a2  # Get remainder (next digit)
-        blt t1, 10, decimal_loop # If digit < 10, it's a decimal digit
+        li t2, 10
+        blt t1, t2, decimal_loop # If digit < 10, it's a decimal digit
         
         hex_loop:
-            addi t1, t1, 'a' - 10 # Convert to ASCII for hex (a-f)
+            addi t1, t1, 'a' # Convert to ASCII for hex (a-f)
+            addi t1, t1, -10 # Adjust for hex offset
             sb t1, 0(a1)    # Store character in buffer
             addi a1, a1, 1  # Move buffer pointer forward
             div a0, a0, a2  # Divide number by base
@@ -163,6 +176,7 @@ itoa:
             
         null_terminate:
             sb zero, 0(a1)  # Null-terminate the string
+            mv a0, t6       # Move original buffer pointer to a0 for return
             ret
 
 # Almost same function as lab9, but now it is ABI compliant
